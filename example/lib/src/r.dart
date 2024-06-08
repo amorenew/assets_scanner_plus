@@ -7,15 +7,14 @@ class R {
 
   static const arrow_right_alt_white = 'assets/arrow_right_alt_white.png';
 
-  static const baseline_3d_rotation_white =
-      'assets/baseline_3d_rotation_white.png';
+  static const baseline_3d_rotation_white = 'assets/baseline_3d_rotation_white.png';
 
-  static const sub_koo_arrow_right_alt_white =
-      'assets/sub/koo/arrow_right_alt_white.png';
+  static const sub_koo_arrow_right_alt_white = 'assets/sub/koo/arrow_right_alt_white.png';
 
   static const sub_sub_alarm_white = 'assets/sub/sub_alarm_white.png';
 
-  static const allSVGAssets = [];
+  static const allSVGAssets = [
+  ];
 
 // ignore_for_file: always_put_control_body_on_new_line,always_specify_types,annotate_overrides,avoid_annotating_with_dynamic,avoid_as,avoid_catches_without_on_clauses,avoid_returning_this,lines_longer_than_80_chars,omit_local_variable_types,prefer_expression_function_bodies,sort_constructors_first,test_types_in_equals,unnecessary_const,unnecessary_new,public_member_api_docs,constant_identifier_names,prefer_double_quotes
 }
