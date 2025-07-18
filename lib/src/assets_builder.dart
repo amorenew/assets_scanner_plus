@@ -208,7 +208,7 @@ class AssetsBuilder extends Builder {
         final count = propertyNames[propertyName]!;
         if (count > 1) {
           final extension = p.extension(assetPath).replaceAll('.', '_');
-          propertyName = '${propertyName}$extension';
+          propertyName = '$propertyName$extension';
         }
 
         if (!options.ignoreComment) {
@@ -232,7 +232,7 @@ class AssetsBuilder extends Builder {
         final count = propertyNames[propertyName]!;
         if (count > 1) {
           final extension = p.extension(assetPath).replaceAll('.', '_');
-          propertyName = '${propertyName}$extension';
+          propertyName = '$propertyName$extension';
         }
         assetPathsClass..writeln('    $propertyName,');
       }
