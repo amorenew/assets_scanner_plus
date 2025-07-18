@@ -30,6 +30,27 @@ class R {
 >
 > * If the asset's name is not a legal dart identifier, the illegal characters will be converted to `_`, .e.g, the asset name `2TXsXk.jpg!w1280h1000.jpg` will generate the property name `r_2TXsXk_jpg_w1280h1000`.
 
+By default, `assets_scanner_plus` will generate a `r.dart` file in your `lib` folder. If you want to change the default behavior, you can add an `assets_scanner_plus_options.yaml` file in your project's root folder.
+
+```yaml
+# The path where the generated file locate.
+# Note that the `path` should be sub-path of `lib/`.
+path: lib/generated
+
+# The class name of the generated file.
+className: R
+
+# The file name of the generated file.
+fileName: assets.dart
+
+# Indicate the comments need to be generated or not.
+# Note that the you can't preview the images assets if `ignoreComment` is `true`.
+ignoreComment: false
+```
+
+Then `assets_scanner_plus` will generate a `assets.dart` file with class name `R` in your `lib/generated` folder.
+
+## Previewing assets
 Now, you can preview images assets by hovering to the constants:
 
 ![](art/asset-preview.gif)
@@ -40,6 +61,8 @@ By default, **assets_scanner_plus** generate the `r.dart` in the `lib/`, the cla
 
 * `className`: The class name of the `r.dart`.
 
+* `fileName`: The file name of the generated file.
+
 * `ignoreComment`: Indicate the comments need to be generated or not. Note that the you can't preview the images assets if `ignoreComment` is `true`.
 
 Here the example of the `assets_scanner_plus_options.yaml` file:
@@ -48,6 +71,7 @@ Here the example of the `assets_scanner_plus_options.yaml` file:
 
 path: "lib/src"
 className: "MainAssets"
+fileName: "assets.dart"
 ignoreComment: true
 ```
 

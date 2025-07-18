@@ -10,6 +10,7 @@ class _AssetsScannerOptions {
   const _AssetsScannerOptions._({
     this.path = 'lib',
     this.className = 'R',
+    this.fileName = 'r.dart',
     this.ignoreComment = false,
   });
 
@@ -19,6 +20,7 @@ class _AssetsScannerOptions {
     return _AssetsScannerOptions._(
       path: map['path'] as String? ?? 'lib',
       className: map['className'] as String? ?? 'R',
+      fileName: map['fileName'] as String? ?? 'r.dart',
       ignoreComment: map['ignoreComment'] as bool? ?? false,
     );
   }
@@ -30,13 +32,16 @@ class _AssetsScannerOptions {
   /// The class name of the `r.dart`.
   final String className;
 
+  /// The file name of the generated file.
+  final String fileName;
+
   /// Indicate the comments need to be generated or not. Note that the you can't
   /// preview the images assets if `ignoreComment` is `true`.
   final bool ignoreComment;
 
   @override
   String toString() =>
-      '_AssetsScannerOptions(path: $path, className: $className, ignoreComment: $ignoreComment)';
+      '_AssetsScannerOptions(path: $path, className: $className, fileName: $fileName, ignoreComment: $ignoreComment)';
 }
 
 /// File header of generated file.
@@ -80,7 +85,10 @@ class AssetsBuilder extends Builder {
 
   @override
   Map<String, List<String>> get buildExtensions {
-    var extensions = 'r.dart';
+    var extensions = options.fileName;
+    if (!extensions.endsWith('.dart')) {
+      extensions = '$extensions.dart';
+    }
     if (options.path != 'lib' && options.path.startsWith('lib/')) {
       extensions = '${options.path.replaceFirst('lib/', '')}/$extensions';
     }
@@ -99,17 +107,21 @@ class AssetsBuilder extends Builder {
 
     if (!options.path.startsWith('lib')) {
       log.severe(
-          'The custom path in assets_scanner_plus_options.yaml should be sub-path of lib/.');
-      return;
+        'The path `${options.path}` in `assets_scanner_plus_options.yaml` should be sub-path of `lib/`',
+      );
     }
 
-    final rClass =
-        await _generateRFileContent(buildStep, pubspecYamlMap!, options);
-    if (rClass.isEmpty) return;
+    final outputId = AssetId(
+      buildStep.inputId.package,
+      p.join(options.path, options.fileName),
+    );
 
-    final dir = options.path.startsWith('lib') ? options.path : 'lib';
-    final output = AssetId(buildStep.inputId.package, p.join(dir, 'r.dart'));
-    await buildStep.writeAsString(output, rClass);
+    final rFileContent =
+        await _generateRFileContent(buildStep, pubspecYamlMap!, options);
+
+    if (rFileContent.isNotEmpty) {
+      await buildStep.writeAsString(outputId, rFileContent);
+    }
   }
 
   Future<String> _generateRFileContent(BuildStep buildStep,
@@ -133,22 +145,27 @@ class AssetsBuilder extends Builder {
   }
 
   String _createPropertyName(String assetPath) {
-    var propertyName = assetPath.substring(
-        assetPath.indexOf('/') + 1, assetPath.lastIndexOf('.'));
+    var propertyName = assetPath;
+    if (propertyName.startsWith('assets/')) {
+      propertyName = propertyName.substring('assets/'.length);
+    }
+
+    final extension = p.extension(assetPath);
+    if (extension.isNotEmpty) {
+      propertyName =
+          propertyName.substring(0, propertyName.length - extension.length);
+    }
+
     // On iOS it will create a .DS_Store file in assets folder which will
     // cause an empty property name, so we skip it.
     if (propertyName.isEmpty) return propertyName;
 
-    if (_identifier.hasMatch(propertyName)) {
-      // Ignore the parent path to make the property name shorter.
-      propertyName = propertyName.replaceAll('/', '_');
-    } else {
-      final shouldAddPrefix = !_identifierStart.hasMatch(propertyName);
+    if (!_identifier.hasMatch(propertyName)) {
       propertyName = propertyName.replaceAllMapped(
         _invalidIdentifierCharacters,
         (match) => '_',
       );
-      if (shouldAddPrefix) {
+      if (!_identifierStart.hasMatch(propertyName)) {
         propertyName = _propertyNamePrefix + propertyName;
       }
     }
@@ -176,9 +193,24 @@ class AssetsBuilder extends Builder {
       ..writeln('  static const package = \'${buildStep.inputId.package}\';')
       ..writeln();
 
+    final propertyNames = <String, int>{};
     for (final assetPath in assetPaths) {
       final propertyName = _createPropertyName(assetPath);
       if (propertyName.isNotEmpty) {
+        propertyNames.update(propertyName, (value) => value + 1,
+            ifAbsent: () => 1);
+      }
+    }
+
+    for (final assetPath in assetPaths) {
+      var propertyName = _createPropertyName(assetPath);
+      if (propertyName.isNotEmpty) {
+        final count = propertyNames[propertyName]!;
+        if (count > 1) {
+          final extension = p.extension(assetPath).replaceAll('.', '_');
+          propertyName = '${propertyName}$extension';
+        }
+
         if (!options.ignoreComment) {
           assetPathsClass.writeln('  /// ![](${p.absolute(assetPath)})');
         }
@@ -195,9 +227,13 @@ class AssetsBuilder extends Builder {
       ..sort();
 
     for (final assetPath in svgs) {
-      final propertyName = _createPropertyName(assetPath);
-
+      var propertyName = _createPropertyName(assetPath);
       if (propertyName.isNotEmpty) {
+        final count = propertyNames[propertyName]!;
+        if (count > 1) {
+          final extension = p.extension(assetPath).replaceAll('.', '_');
+          propertyName = '${propertyName}$extension';
+        }
         assetPathsClass..writeln('    $propertyName,');
       }
     }
@@ -265,54 +301,64 @@ class AssetsBuilder extends Builder {
 
   Future<YamlMap?> _loadPubspecYamlMap(BuildStep buildStep) async {
     final pubspecAssetId = AssetId(buildStep.inputId.package, 'pubspec.yaml');
-    final pubspecContent = await buildStep.readAsString(pubspecAssetId);
-    return loadYaml(pubspecContent) as YamlMap?;
-  }
-
-  Set<String> _getPackagesFromPubspec(YamlMap pubspecYamlMap) {
-    final dependencies = pubspecYamlMap['dependencies'] as YamlMap?;
-    return dependencies != null ? Set<String>.from(dependencies.keys) : {};
-  }
-
-  Set<String> _getAssetsListFromPubspec(YamlMap pubspecYamlMap) {
-    final flutterMap = pubspecYamlMap['flutter'] as YamlMap?;
-    final assetsList = flutterMap?['assets'] as YamlList?;
-    // It's valid that set the same asset path multiple times in pubspec.yaml,
-    // so the assets can be duplicate, use `Set` here to filter the same asset path.
-    return assetsList != null ? Set<String>.from(assetsList) : {};
-  }
-
-  /// Get `assets` value from `pubspec.yaml` file.
-  Set<Glob> _createAssetsListGlob(YamlMap pubspecYamlMap) {
-    return _getAssetsListFromPubspec(pubspecYamlMap).map((asset) {
-      return asset.endsWith('/') ? Glob('$asset*') : Glob(asset);
-    }).toSet();
+    if (!await buildStep.canRead(pubspecAssetId)) {
+      return null;
+    }
+    final content = await buildStep.readAsString(pubspecAssetId);
+    return loadYaml(content) as YamlMap;
   }
 
   Future<List<String>> _findAssetIdPathsFromFlutterAssetsList(
       BuildStep buildStep, YamlMap pubspecYamlMap) async {
-    final globList = _createAssetsListGlob(pubspecYamlMap);
-    final assetsSet = <AssetId>{};
-
-    for (final glob in globList) {
-      final assets = await buildStep.findAssets(glob).toList();
-      assetsSet.addAll(assets);
-    }
-
-    return assetsSet.map((e) => e.path).toList();
-  }
-
-  /// Create [_AssetsScannerOptions] from `assets_scanner_plus_options.yaml` file
-  _AssetsScannerOptions _loadOptions() {
-    final optionsFile = File('assets_scanner_plus_options.yaml');
-    if (optionsFile.existsSync()) {
-      final optionsContent = optionsFile.readAsStringSync();
-      if (optionsContent.isNotEmpty) {
-        return _AssetsScannerOptions.fromYamlMap(
-            loadYaml(optionsContent) as YamlMap);
+    final assets = _getAssetsListFromPubspec(pubspecYamlMap);
+    final result = <String>{};
+    for (final asset in assets) {
+      if (asset.endsWith('/')) {
+        final glob = Glob('$asset*');
+        await for (final id in buildStep.findAssets(glob)) {
+          result.add(id.path);
+        }
+      } else {
+        if (await buildStep
+            .canRead(AssetId(buildStep.inputId.package, asset))) {
+          result.add(asset);
+        }
       }
     }
+    return result.toList();
+  }
 
+  List<String> _getAssetsListFromPubspec(YamlMap pubspecYamlMap) {
+    final flutterMap = pubspecYamlMap['flutter'] as YamlMap?;
+    if (flutterMap == null) {
+      return [];
+    }
+    final assets = flutterMap['assets'] as YamlList?;
+    if (assets == null) {
+      return [];
+    }
+    return assets.map((e) => e.toString()).toList();
+  }
+
+  List<String> _getPackagesFromPubspec(YamlMap pubspecYamlMap) {
+    final dependencies = pubspecYamlMap['dependencies'] as YamlMap?;
+    if (dependencies == null) {
+      return [];
+    }
+    return dependencies.keys.cast<String>().toList();
+  }
+
+  _AssetsScannerOptions _loadOptions() {
+    try {
+      final file = File('assets_scanner_plus_options.yaml');
+      if (file.existsSync()) {
+        final yaml = loadYaml(file.readAsStringSync()) as YamlMap;
+        return _AssetsScannerOptions.fromYamlMap(yaml);
+      }
+    } catch (e) {
+      log.warning(
+          'Failed to load `assets_scanner_plus_options.yaml` file, fallback to default options.');
+    }
     return _AssetsScannerOptions();
   }
 }

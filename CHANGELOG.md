@@ -1,3 +1,10 @@
+## 3.0.0
+
+* Migrate to build: 3.0.0
+* Add custom output file name to fix
+https://github.com/amorenew/assets_scanner_plus/issues/1
+* Handle dublicate names but different extension to fix
+https://github.com/amorenew/assets_scanner_plus/issues/2
 ## 2.0.0
 
 * Migrating to null-safety
