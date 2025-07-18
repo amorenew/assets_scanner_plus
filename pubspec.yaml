@@ -1,6 +1,6 @@
 name: assets_scanner_plus
 description: assets_scanner_plus helps you generate assets path constants to r.dart file, you can preview the images assets by hovering over the constants.
-version: 2.0.0
+version: 3.0.0
 homepage: https://github.com/amorenew/assets_scanner_plus
 
 environment:
