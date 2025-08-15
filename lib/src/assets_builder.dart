@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:build/build.dart';
+import 'package:dart_style/dart_style.dart' as dart_style;
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart' as semver;
 import 'package:yaml/yaml.dart';
 
 class _AssetsScannerOptions {
@@ -12,6 +14,7 @@ class _AssetsScannerOptions {
     this.className = 'R',
     this.fileName = 'r.dart',
     this.ignoreComment = false,
+    this.formatterPageWidth = 80,
   });
 
   factory _AssetsScannerOptions() => const _AssetsScannerOptions._();
@@ -22,6 +25,7 @@ class _AssetsScannerOptions {
       className: map['className'] as String? ?? 'R',
       fileName: map['fileName'] as String? ?? 'r.dart',
       ignoreComment: map['ignoreComment'] as bool? ?? false,
+      formatterPageWidth: _parseInt(map['formatter_page_width']) ?? 80,
     );
   }
 
@@ -39,9 +43,21 @@ class _AssetsScannerOptions {
   /// preview the images assets if `ignoreComment` is `true`.
   final bool ignoreComment;
 
+  /// The page width used by the Dart formatter for the generated file.
+  final int formatterPageWidth;
+
   @override
   String toString() =>
-      '_AssetsScannerOptions(path: $path, className: $className, fileName: $fileName, ignoreComment: $ignoreComment)';
+      '_AssetsScannerOptions(path: $path, className: $className, fileName: $fileName, ignoreComment: $ignoreComment, formatterPageWidth: $formatterPageWidth)';
+
+  static int? _parseInt(Object? value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) {
+      return int.tryParse(value.trim());
+    }
+    return null;
+  }
 }
 
 /// File header of generated file.
@@ -50,24 +66,14 @@ const String rFileHeader =
     '/// See more detail on https://github.com/amorenew/assets_scanner_plus.';
 
 /// Ignore for file definition.
-const ignoreForFile = '// ignore_for_file: '
-    'always_put_control_body_on_new_line,'
+const ignoreForFile = ' // ignore_for_file: '
     'always_specify_types,'
-    'annotate_overrides,'
-    'avoid_annotating_with_dynamic,'
-    'avoid_as,'
-    'avoid_catches_without_on_clauses,'
-    'avoid_returning_this,'
     'lines_longer_than_80_chars,'
     'omit_local_variable_types,'
-    'prefer_expression_function_bodies,'
-    'sort_constructors_first,'
-    'test_types_in_equals,'
-    'unnecessary_const,'
-    'unnecessary_new,'
-    'public_member_api_docs,'
     'constant_identifier_names,'
-    'prefer_double_quotes';
+    'prefer_double_quotes,'
+    'unnecessary_const,'
+    'unnecessary_ignore';
 
 /// Borrow from https://github.com/dart-lang/sdk/blob/c3f96e863ff402be32aa7acf51ee05b7de0b9841/pkg/analyzer/lib/src/lint/util.dart#L15
 final _identifier = RegExp(r'^([(_|$)a-zA-Z]+([_a-zA-Z0-9])*)$');
@@ -134,14 +140,42 @@ class AssetsBuilder extends Builder {
       return '';
     }
 
-    final rFileContent = StringBuffer()
-      ..writeln(rFileHeader)
-      ..writeln(assetPathsClass);
-    if (packageAssetPathsClass.isNotEmpty) {
-      rFileContent.writeln(packageAssetPathsClass);
+    final buffer = StringBuffer()..writeln(rFileHeader);
+    try {
+      final fmt = dart_style.DartFormatter(
+        pageWidth: options.formatterPageWidth,
+        languageVersion: semver.Version(3, 0, 0),
+      );
+      if (assetPathsClass.isNotEmpty) {
+        var formatted = fmt.format(assetPathsClass);
+        formatted = formatted.replaceFirst(RegExp(r'^\n+'), '');
+        buffer.write(formatted);
+        if (!formatted.endsWith('\n')) buffer.write('\n');
+      }
+      if (packageAssetPathsClass.isNotEmpty) {
+        var formatted = fmt.format(packageAssetPathsClass);
+        formatted = formatted.replaceFirst(RegExp(r'^\n+'), '');
+        buffer.write(formatted);
+        if (!formatted.endsWith('\n')) buffer.write('\n');
+      }
+    } catch (e) {
+      // Fallback without formatting.
+      log.warning('Failed to format generated code: $e');
+      if (assetPathsClass.isNotEmpty) {
+        buffer.write(assetPathsClass);
+        if (!assetPathsClass.endsWith('\n')) buffer.write('\n');
+      }
+      if (packageAssetPathsClass.isNotEmpty) {
+        buffer.write(packageAssetPathsClass);
+        if (!packageAssetPathsClass.endsWith('\n')) buffer.write('\n');
+      }
     }
 
-    return rFileContent.toString();
+    var output = buffer.toString();
+    if (!output.endsWith('\n')) {
+      output = '$output\n';
+    }
+    return output;
   }
 
   String _createPropertyName(String assetPath) {
@@ -220,27 +254,27 @@ class AssetsBuilder extends Builder {
       }
     }
 
-    assetPathsClass.writeln('  static const allSVGAssets = [');
     final svgs = assetPaths
         .where((assetPath) => assetPath.endsWith('.svg'))
         .toList()
       ..sort();
-
-    for (final assetPath in svgs) {
-      var propertyName = _createPropertyName(assetPath);
-      if (propertyName.isNotEmpty) {
-        final count = propertyNames[propertyName]!;
-        if (count > 1) {
-          final extension = p.extension(assetPath).replaceAll('.', '_');
-          propertyName = '$propertyName$extension';
+    if (svgs.isNotEmpty) {
+      assetPathsClass.writeln('  static const List<String> allSVGAssets = [');
+      for (final assetPath in svgs) {
+        var propertyName = _createPropertyName(assetPath);
+        if (propertyName.isNotEmpty) {
+          final count = propertyNames[propertyName]!;
+          if (count > 1) {
+            final extension = p.extension(assetPath).replaceAll('.', '_');
+            propertyName = '$propertyName$extension';
+          }
+          assetPathsClass..writeln('    $propertyName,');
         }
-        assetPathsClass..writeln('    $propertyName,');
       }
+      assetPathsClass..writeln('  ];');
     }
 
     assetPathsClass
-      ..writeln('  ];')
-      ..writeln()
       ..writeln(ignoreForFile)
       ..writeln('}');
 

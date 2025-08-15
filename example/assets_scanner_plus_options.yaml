@@ -2,3 +2,4 @@ path: "lib/src"
 className: "R"
 fileName: "koo.dart"
 ignoreComment: true
+formatter_page_width: 80

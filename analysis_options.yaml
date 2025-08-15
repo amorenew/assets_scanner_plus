@@ -6,6 +6,14 @@ analyzer:
     implicit-dynamic: false
 linter:
   rules:
+    - strict_top_level_inference
+    - specify_nonobvious_property_types
+    - unnecessary_async
+    - unsafe_variance
+    - unnecessary_ignore
+    - eol_at_end_of_file
+    - switch_on_type
+    - unnecessary_unawaited
     - public_member_api_docs
     - annotate_overrides
     - avoid_empty_else

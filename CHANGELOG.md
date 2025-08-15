@@ -1,3 +1,8 @@
+## 3.1.0
+
+* Upgrade to Flutter 3.35.0
+* format the output
+
 ## 3.0.0
 
 * Migrate to build: 3.0.0

@@ -65,6 +65,8 @@ By default, **assets_scanner_plus** generate the `r.dart` in the `lib/`, the cla
 
 * `ignoreComment`: Indicate the comments need to be generated or not. Note that the you can't preview the images assets if `ignoreComment` is `true`.
 
+* `formatter_page_width`: The maximum line width the Dart formatter should target when formatting the generated file. Default: `80`.
+
 Here the example of the `assets_scanner_plus_options.yaml` file:
 ```yaml
 # assets_scanner_plus_options.yaml
@@ -73,6 +75,7 @@ path: "lib/src"
 className: "MainAssets"
 fileName: "assets.dart"
 ignoreComment: true
+formatter_page_width: 80
 ```
 
 ## License
