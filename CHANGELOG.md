@@ -1,3 +1,6 @@
+## 3.2.0
+* Upgrade to Build 4.0.0
+
 ## 3.1.0
 
 * Upgrade to Flutter 3.35.0
